@@ -207,6 +207,9 @@ struct Rainbow : core::PrismModule {
 	int internalSampleRate = 48000;
 	float freqScale = 2.0f;
 
+	constexpr static int slowioRate = 32;
+	int slowioC = 100000000;
+
 	void setCPUMode(bool isHigh) {
 		if (isHigh) {
 			highCPUMode = true;
@@ -434,11 +437,6 @@ struct Rainbow : core::PrismModule {
 		configParam(FREQNUDGE6_PARAM, -4095, 4095, 0, "Freq Nudge evens");
 		configSwitch(MOD135_PARAM, 0, 1, 0, "Mod", {"1", "135"});
 		configSwitch(MOD246_PARAM, 0, 1, 0, "Mod", {"6", "246"});
-		configParam(LOCK135_PARAM, 0, 1, 0, "Inv. Lock 1-135");
-		configParam(LOCK246_PARAM, 0, 1, 0, "Inv. Lock 6-246");
-		// TODO: New Prism::Button needed for these
-		// configSwitch(LOCK135_PARAM, 0, 1, 0, "Inv. Lock 1-135", {"Unlocked", "Locked"});
-		// configSwitch(LOCK246_PARAM, 0, 1, 0, "Inv. Lock 6-246", {"Unlocked", "Locked"});
 
 		configParam(BANK_PARAM, 0, 19, 0, "Bank"); 
 		configParam(SWITCHBANK_PARAM, 0, 1, 0, "Switch bank"); 
@@ -473,18 +471,21 @@ struct Rainbow : core::PrismModule {
 			configInput(MONO_Q_INPUT + i, string::f("Mono Q %i", i + 1));
 			configOutput(MONO_VOCT_OUTPUT + i, string::f("Mono V/Oct %i", i + 1));
 			configOutput(MONO_ENV_OUTPUT + i, string::f("Mono envelope %i", i + 1));
+		}
 
-			configParam(CHANNEL_LEVEL_PARAM + i, 0, 4095, 4095, "Channel Level");
-			configParam(LEVEL_OUT_PARAM + i, 0, 2, 1, "Channel Level");
+		for (int n = 0; n < NUM_CHANNELS; n++) {
+			configParam(CHANNEL_LEVEL_PARAM + n, 0, 4095, 4095, "Channel Level");
+			configParam(LEVEL_OUT_PARAM + n, 0, 2, 1, "Channel Level");
 
-			configParam(CHANNEL_Q_PARAM + i, 0, 4095, 2048, "Channel Q");
-			configButton(CHANNEL_Q_ON_PARAM + i, "Channel Q activate");
+			configParam(CHANNEL_Q_PARAM + n, 0, 4095, 2048, "Channel Q");
+			configParam(CHANNEL_Q_ON_PARAM + n, 0, 1, 0, "Channel Q activate");
 
-			configButton(LOCKON_PARAM + i, "Lock channel");
+			configParam(LOCKON_PARAM + n, 0, 1, 0, "Lock channel");
 
-			configParam(TRANS_PARAM + i, -12, 12, 0, "Semitone transpose"); 
+			configParam(TRANS_PARAM + n, -12, 12, 0, "Semitone transpose"); 
 
-			vuMeters[i].mode = dsp::VuMeter2::RMS;
+			vuMeters[n].mode = dsp::VuMeter2::RMS;
+			channelClipCnt[n] = 0;
 		}
 
     	configBypass(POLY_IN_INPUT, POLY_OUT_OUTPUT);		
@@ -545,27 +546,6 @@ void Rainbow::process(const ProcessArgs &args) {
 		io.UI_UPDATE = true;
 	}
 
-	io.USERSCALE_CHANGED = false;
-	if (rightExpander.module) {
-		if (rightExpander.module->model == modelRainbowScaleExpander) {
-			RainbowScaleExpanderMessage *cM = (RainbowScaleExpanderMessage*)rightExpander.consumerMessage;
-			if (cM->updated) {
-				for (int i = 0; i < NUM_BANKNOTES; i++) {
-					io.USERSCALE96[i] = cM->maxq96[i]; 
-					io.USERSCALE48[i] = cM->maxq48[i]; 
-				}
-				io.USERSCALE_CHANGED = true;
-				io.READCOEFFS = true;
-			} 
-		}
-	} 
-
-	io.HICPUMODE = highCPUMode;
-	if (highCPUModeChanged) { // Set from widget
-		io.READCOEFFS = true;
-		highCPUModeChanged = false;
-	}
-
 	if (rotCWTrigger.process(inputs[ROTCW_INPUT].getVoltage())) {
 		io.ROTUP_TRIGGER = true;
 	} else {
@@ -578,111 +558,148 @@ void Rainbow::process(const ProcessArgs &args) {
 		io.ROTDOWN_TRIGGER = false;
 	}
 
-	if (rotCWButtonTrigger.process(params[ROTCW_PARAM].getValue())) {
-		io.ROTUP_BUTTON = true;
-	} else {
-		io.ROTUP_BUTTON = false;
-	}
+	if (++slowioC > slowioRate) {
+		slowioC = 0;
 
-	if (rotCCWButtonTrigger.process(params[ROTCCW_PARAM].getValue())) {
-		io.ROTDOWN_BUTTON = true;
-	} else {
-		io.ROTDOWN_BUTTON = false;
-	}
-
-	if (scaleCWButtonTrigger.process(params[SCALECW_PARAM].getValue())) {
-		io.SCALEUP_BUTTON = true;
-	} else {
-		io.SCALEUP_BUTTON = false;
-	}
-
-	if (scaleCCWButtonTrigger.process(params[SCALECCW_PARAM].getValue())) {
-		io.SCALEDOWN_BUTTON = true;
-	} else {
-		io.SCALEDOWN_BUTTON = false;
-	}
-
-	io.MOD135_SWITCH = (Mod135Setting)params[MOD135_PARAM].getValue();
-	io.MOD246_SWITCH = (Mod246Setting)params[MOD246_PARAM].getValue();
-
-	if (lock135Trigger.process(inputs[LOCK135_INPUT].getVoltage()) ||
-		lock135ButtonTrigger.process(params[LOCK135_PARAM].getValue())) {
-
-		io.LOCK_ON[0] = !io.LOCK_ON[0];
-		
-		if (io.MOD135_SWITCH == Mod_135) {
-			io.LOCK_ON[2] = !io.LOCK_ON[2];
-			io.LOCK_ON[4] = !io.LOCK_ON[4];
-		}
-	} 
-
-	if (lock246Trigger.process(inputs[LOCK246_INPUT].getVoltage()) ||
-		lock246ButtonTrigger.process(params[LOCK246_PARAM].getValue())) {
-
-		io.LOCK_ON[5] = !io.LOCK_ON[5];
-		
-		if (io.MOD246_SWITCH == Mod_246) {
-			io.LOCK_ON[1] = !io.LOCK_ON[1];
-			io.LOCK_ON[3] = !io.LOCK_ON[3];
-		}
-	} 
-
-	for (int n = 0; n < 6; n++) {
-		// Process Locks
-		if (lockTriggers[n].process(params[LOCKON_PARAM + n].getValue())) {
-			io.LOCK_ON[n] = !io.LOCK_ON[n];
+		io.USERSCALE_CHANGED = false;
+		if (rightExpander.module) {
+			if (rightExpander.module->model == modelRainbowScaleExpander) {
+				RainbowScaleExpanderMessage *cM = (RainbowScaleExpanderMessage*)rightExpander.consumerMessage;
+				if (cM->updated) {
+					for (int i = 0; i < NUM_BANKNOTES; i++) {
+						io.USERSCALE96[i] = cM->maxq96[i]; 
+						io.USERSCALE48[i] = cM->maxq48[i]; 
+					}
+					io.USERSCALE_CHANGED = true;
+					io.READCOEFFS = true;
+				} 
+			}
 		} 
 
-		// Process QLocks
-		if (qlockTriggers[n].process(params[CHANNEL_Q_ON_PARAM + n].getValue())) {
-			io.CHANNEL_Q_ON[n] = !io.CHANNEL_Q_ON[n];
+		io.HICPUMODE = highCPUMode;
+		if (highCPUModeChanged) { // Set from widget
+			io.READCOEFFS = true;
+			highCPUModeChanged = false;
 		}
-	}
 
-	// Handle bank/filter change
-	nextBank = params[BANK_PARAM].getValue();
-	nextFilter = (FilterSetting)params[FILTER_PARAM].getValue();
-
-	// Handle filter change
-	if (nextFilter != currFilter) {
-		currFilter = nextFilter;
-		if (nextFilter == Bpre && currBank == 19) { 
-			// BpRe filters do not support user defined scales, so set bank to Major
-			params[BANK_PARAM].setValue(0);
-			currBank = 0;
-			nextBank = 0;
-			io.CHANGED_BANK = true;
-			io.NEW_BANK = nextBank;
-		}
-	}
-
-	// Handle bank switch press
-	if (changeBankTrigger.process(params[SWITCHBANK_PARAM].getValue())) {
-		if (io.FILTER_SWITCH == Bpre && nextBank == 19) {
-			// BpRe filters do not support user defined scales, so prevent bank change to user defined
-			io.CHANGED_BANK = false;
-			params[BANK_PARAM].setValue(currBank);
+		if (rotCWButtonTrigger.process(params[ROTCW_PARAM].getValue())) {
+			io.ROTUP_BUTTON = true;
 		} else {
-			io.CHANGED_BANK = true;
-			io.NEW_BANK = nextBank;
-			currBank = nextBank;
+			io.ROTUP_BUTTON = false;
 		}
-	} else {
-		io.CHANGED_BANK = false;
+
+		if (rotCCWButtonTrigger.process(params[ROTCCW_PARAM].getValue())) {
+			io.ROTDOWN_BUTTON = true;
+		} else {
+			io.ROTDOWN_BUTTON = false;
+		}
+
+		if (scaleCWButtonTrigger.process(params[SCALECW_PARAM].getValue())) {
+			io.SCALEUP_BUTTON = true;
+		} else {
+			io.SCALEUP_BUTTON = false;
+		}
+
+		if (scaleCCWButtonTrigger.process(params[SCALECCW_PARAM].getValue())) {
+			io.SCALEDOWN_BUTTON = true;
+		} else {
+			io.SCALEDOWN_BUTTON = false;
+		}
+
+		io.MOD135_SWITCH = (Mod135Setting)params[MOD135_PARAM].getValue();
+		io.MOD246_SWITCH = (Mod246Setting)params[MOD246_PARAM].getValue();
+
+		if (lock135Trigger.process(inputs[LOCK135_INPUT].getVoltage()) ||
+			lock135ButtonTrigger.process(params[LOCK135_PARAM].getValue())) {
+
+			io.LOCK_ON[0] = !io.LOCK_ON[0];
+			
+			if (io.MOD135_SWITCH == Mod_135) {
+				io.LOCK_ON[2] = !io.LOCK_ON[2];
+				io.LOCK_ON[4] = !io.LOCK_ON[4];
+			}
+		} 
+
+		if (lock246Trigger.process(inputs[LOCK246_INPUT].getVoltage()) ||
+			lock246ButtonTrigger.process(params[LOCK246_PARAM].getValue())) {
+			io.LOCK_ON[5] = !io.LOCK_ON[5];
+			
+			if (io.MOD246_SWITCH == Mod_246) {
+				io.LOCK_ON[1] = !io.LOCK_ON[1];
+				io.LOCK_ON[3] = !io.LOCK_ON[3];
+			}
+		} 
+
+		for (int n = 0; n < 6; n++) {
+			// Process Locks
+			if (lockTriggers[n].process(params[LOCKON_PARAM + n].getValue())) {
+				io.LOCK_ON[n] = !io.LOCK_ON[n];
+			} 
+
+			// Process QLocks
+			if (qlockTriggers[n].process(params[CHANNEL_Q_ON_PARAM + n].getValue())) {
+				io.CHANNEL_Q_ON[n] = !io.CHANNEL_Q_ON[n];
+			}
+		}
+
+		// Handle bank/filter change
+		nextBank = params[BANK_PARAM].getValue();
+		nextFilter = (FilterSetting)params[FILTER_PARAM].getValue();
+
+		// Handle filter change
+		if (nextFilter != currFilter) {
+			currFilter = nextFilter;
+			if (nextFilter == Bpre && currBank == 19) { 
+				// BpRe filters do not support user defined scales, so set bank to Major
+				params[BANK_PARAM].setValue(0);
+				currBank = 0;
+				nextBank = 0;
+				io.CHANGED_BANK = true;
+				io.NEW_BANK = nextBank;
+			}
+		}
+
+		// Handle bank switch press
+		if (changeBankTrigger.process(params[SWITCHBANK_PARAM].getValue())) {
+			if (io.FILTER_SWITCH == Bpre && nextBank == 19) {
+				// BpRe filters do not support user defined scales, so prevent bank change to user defined
+				io.CHANGED_BANK = false;
+				params[BANK_PARAM].setValue(currBank);
+			} else {
+				io.CHANGED_BANK = true;
+				io.NEW_BANK = nextBank;
+				currBank = nextBank;
+			}
+		} else {
+			io.CHANGED_BANK = false;
+		}
+
+		io.FILTER_SWITCH	= (FilterSetting)params[FILTER_PARAM].getValue();
+		io.ENV_SWITCH = (EnvelopeMode)params[ENV_PARAM].getValue();
+
+		if (glissTrigger.process(params[VOCTGLIDE_PARAM].getValue())) {
+			io.GLIDE_SWITCH = !io.GLIDE_SWITCH;
+		} 
+
+		if (prepostTrigger.process(params[PREPOST_PARAM].getValue())) {
+			io.PREPOST_SWITCH = !io.PREPOST_SWITCH;
+		} 
+
+		if (scaleRotTrigger.process(params[SCALEROT_PARAM].getValue())) {
+			io.SCALEROT_SWITCH = !io.SCALEROT_SWITCH;
+		} 
+
 	}
 
-	io.FILTER_SWITCH	= (FilterSetting)params[FILTER_PARAM].getValue();
+	io.MORPH_ADC		= std::clamp<uint32_t>(params[MORPH_PARAM].getValue() + inputs[MORPH_INPUT].getVoltage() * 409.5f, 0, 4095);
+	io.SPREAD_ADC		= std::clamp<uint32_t>(params[SPREAD_PARAM].getValue() + inputs[SPREAD_INPUT].getVoltage() * 409.5f, 0, 4095);
 
-	int noiseSelected 	= params[NOISE_PARAM].getValue();
-
-	io.MORPH_ADC		= std::clamp<uint32_t>(params[MORPH_PARAM].getValue() + inputs[MORPH_INPUT].getVoltage() * 409.5f, 0.0f, 4095.0f);
-	io.SPREAD_ADC		= std::clamp<uint32_t>(params[SPREAD_PARAM].getValue() + inputs[SPREAD_INPUT].getVoltage() * 409.5f, 0.0f, 4095.0f);
-
-	io.GLOBAL_Q_LEVEL	= std::clamp<int32_t>(inputs[GLOBAL_Q_INPUT].getVoltage() * 409.5f, -4095.0f, 4095.0f);
+	io.GLOBAL_Q_LEVEL	= std::clamp<int32_t>(inputs[GLOBAL_Q_INPUT].getVoltage() * 409.5f, -4095, 4095);
 	io.GLOBAL_Q_CONTROL	= (int32_t)params[GLOBAL_Q_PARAM].getValue();
 
 	io.GLOBAL_LEVEL_ADC = params[GLOBAL_LEVEL_PARAM].getValue() / 4095.0f;
 	io.GLOBAL_LEVEL_CV	= inputs[GLOBAL_LEVEL_INPUT].getVoltage() / 5.0f;
+
 
 	for (int n = 0; n < NUM_CHANNELS; n++) {
 		if (!inputs[MONO_LEVEL_INPUT + n].isConnected() && !inputs[POLY_LEVEL_INPUT].isConnected()) { 
@@ -692,7 +709,7 @@ void Rainbow::process(const ProcessArgs &args) {
 		 }
 
 		io.LEVEL_ADC[n] 		= std::clamp(params[CHANNEL_LEVEL_PARAM + n].getValue() / 4095.0f, 0.0f, 1.0f);
-		io.CHANNEL_Q_LEVEL[n] 	= std::clamp<int32_t>((inputs[MONO_Q_INPUT + n].getVoltage() + inputs[POLY_Q_INPUT].getVoltage(n)) * 409.5f, -4095.0f, 4095.0f);
+		io.CHANNEL_Q_LEVEL[n] 	= std::clamp<int32_t>((inputs[MONO_Q_INPUT + n].getVoltage() + inputs[POLY_Q_INPUT].getVoltage(n)) * 409.5f, -4095, 4095);
 		io.CHANNEL_Q_CONTROL[n]	= (int32_t)params[CHANNEL_Q_PARAM + n].getValue();
 		io.TRANS_DIAL[n]		= params[TRANS_PARAM + n].getValue();
 	}
@@ -700,8 +717,8 @@ void Rainbow::process(const ProcessArgs &args) {
 	io.FREQNUDGE1_ADC = params[FREQNUDGE1_PARAM].getValue();
 	io.FREQNUDGE6_ADC = params[FREQNUDGE6_PARAM].getValue();
 
-	io.SCALE_ADC = std::clamp<uint32_t>(inputs[SCALE_INPUT].getVoltage() * 409.5f, 0.0f, 4095.0f);
-	io.ROTCV_ADC = std::clamp<uint32_t>(inputs[ROTATECV_INPUT].getVoltage() * 409.5f, 0.0f, 4095.0f);
+	io.SCALE_ADC = std::clamp<uint32_t>(inputs[SCALE_INPUT].getVoltage() * 409.5f, 0, 4095);
+	io.ROTCV_ADC = std::clamp<uint32_t>(inputs[ROTATECV_INPUT].getVoltage() * 409.5f, 0, 4095);
 
 	io.FREQCV1_CHAN	= inputs[FREQCV1_INPUT].getChannels();
 	io.FREQCV6_CHAN	= inputs[FREQCV6_INPUT].getChannels();
@@ -711,25 +728,12 @@ void Rainbow::process(const ProcessArgs &args) {
 	}
 
 	io.SLEW_ADC	= (uint32_t)params[SLEW_PARAM].getValue();
-	io.ENV_SWITCH = (EnvelopeMode)params[ENV_PARAM].getValue();
-
-	if (glissTrigger.process(params[VOCTGLIDE_PARAM].getValue())) {
-		io.GLIDE_SWITCH = !io.GLIDE_SWITCH;
-	} 
-
-	if (prepostTrigger.process(params[PREPOST_PARAM].getValue())) {
-		io.PREPOST_SWITCH = !io.PREPOST_SWITCH;
-	} 
-
-	if (scaleRotTrigger.process(params[SCALEROT_PARAM].getValue())) {
-		io.SCALEROT_SWITCH = !io.SCALEROT_SWITCH;
-	} 
 
 	prepare();
 
 	audio.inputChannels = std::min(inputs[POLY_IN_INPUT].getChannels(), 6);
 	audio.outputChannels = params[OUTCHAN_PARAM].getValue(); 
-	audio.noiseSelected = noiseSelected;
+	audio.noiseSelected = params[NOISE_PARAM].getValue();
 	audio.sampleRate = args.sampleRate;
 	audio.internalSampleRate = internalSampleRate;
 	audio.outputScale = freqScale;
@@ -820,8 +824,8 @@ void Rainbow::process(const ProcessArgs &args) {
 
 		for (int i = 0; i < NUM_FILTS; i++) {
 			if (io.FREQ_BLOCK[i] && ringLEDs[i]) {
-				ringLEDs[i]->color 		 = nvgRGBf(0.0f, 0.0f, 0.0f);
-				ringLEDs[i]->colorBorder = blockedBorder;
+				ringLEDs[i]->color 			= nvgRGBf(0.0f, 0.0f, 0.0f);
+				ringLEDs[i]->colorBorder 	= blockedBorder;
 			} else if (ringLEDs[i]) {
 				ringLEDs[i]->color = nvgRGBf(
 					io.ring[i][0], 
@@ -849,7 +853,7 @@ void Rainbow::process(const ProcessArgs &args) {
 			}
 
 			if ((channelClipCnt[i] & 32) && envelopeLEDs[i]) {
-				envelopeLEDs[i]->color       = nvgRGBf(0.0f, 0.0f, 0.0f);
+				envelopeLEDs[i]->color = nvgRGBf(0.0f, 0.0f, 0.0f);
 				envelopeLEDs[i]->colorBorder = defaultBorder;
 			} else if (envelopeLEDs[i]) {
 				envelopeLEDs[i]->color = nvgRGBf(
