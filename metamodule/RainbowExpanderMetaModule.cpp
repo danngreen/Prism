@@ -1,5 +1,5 @@
-#include "Common.hpp"
-#include "plugin.hpp"
+#include "../src/Common.hpp"
+#include "../src/plugin.hpp"
 
 using namespace prism;
 
