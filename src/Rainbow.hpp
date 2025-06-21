@@ -371,8 +371,8 @@ struct IO {
 	bool				ROTDOWN_BUTTON {};
 
 	// Button scale
-	bool				SCALEUP_BUTTON;
-	bool				SCALEDOWN_BUTTON;
+	bool				SCALEUP_BUTTON{};
+	bool				SCALEDOWN_BUTTON{};
 
 	// Bank select
 	bool				CHANGED_BANK {};
@@ -561,11 +561,11 @@ struct Q {
 	float	 qval_goal[NUM_CHANNELS]	= {};
 	float	 prev_qval[NUM_CHANNELS]	= {};
 	
-	float	 global_lpf;
+	float	 global_lpf					= 0;
 	float	 qlockpot_lpf[NUM_CHANNELS]	= {};
 
 	uint32_t q_update_ctr				= UINT32_MAX; // Initialise to always fire on first pass 
-   	uint32_t Q_UPDATE_RATE				= 50; 
+   	const uint32_t Q_UPDATE_RATE		= 50; 
 
 	uint32_t QPOT_MIN_CHANGE			= 100;
 	float Q_LPF_96						= 0.95f;
