@@ -12,6 +12,9 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
     return (v < x) ? x : (y < v) ? y : v;
 }}
 #endif*/
+#if defined(METAMODULE)
+#include <span>
+#endif
 
 #include <array>
 #include <bitset>
@@ -24,10 +27,6 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
 
 #include "dsp/noise.hpp"
 #include "scales/Scales.hpp"
-
-#if defined(METAMODULE)
-#include "poly_port.hpp"
-#endif
 
 //Number of components
 #define NUM_FILTS 20
@@ -147,39 +146,31 @@ struct Audio {
 	dsp::Frame<1> nInputFrame[NUM_CHANNELS] = {};
 	dsp::Frame<1> nInputFrames[NUM_CHANNELS][NUM_SAMPLES] = {};
 
-	dsp::SampleRateConverter<NUM_CHANNELS> outputSrc;
-	dsp::DoubleRingBuffer<dsp::Frame<NUM_CHANNELS>, 256> outputBuffer;
-	dsp::Frame<NUM_CHANNELS> outputFrame = {};
-	dsp::Frame<NUM_CHANNELS> outputFrames[NUM_SAMPLES] = {};
-
 	dsp::SampleRateConverter<1> outputSrc1;
 	dsp::DoubleRingBuffer<dsp::Frame<1>, 256> outputBuffer1;
-	dsp::Frame<1> outputFrame1 = {};
 	dsp::Frame<1> outputFrames1[NUM_SAMPLES] = {};
 
 	dsp::SampleRateConverter<2> outputSrc2;
 	dsp::DoubleRingBuffer<dsp::Frame<2>, 256> outputBuffer2;
-	dsp::Frame<2> outputFrame2 = {};
 	dsp::Frame<2> outputFrames2[NUM_SAMPLES] = {};
 
 	dsp::SampleRateConverter<NUM_CHANNELS> outputSrc6;
 	dsp::DoubleRingBuffer<dsp::Frame<NUM_CHANNELS>, 256> outputBuffer6;
-	dsp::Frame<NUM_CHANNELS> outputFrame6 = {};
 	dsp::Frame<NUM_CHANNELS> outputFrames6[NUM_SAMPLES] = {};
 
    	float generateNoise();
 
-#if defined(METAMODULE)
-	using Input = MetaModule::PolyPolyfill::Input<6>;
-	using Output = MetaModule::PolyPolyfill::Output<6>;
+#if !defined(METAMODULE)
+	void ChannelProcess1(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
+	void ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
+	void ChannelProcess6(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
 #else
-	using Input = rack::engine::Input;
-	using Output = rack::engine::Output;
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 1> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 2> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 6> output, rainbow::FilterBank &filterbank);
+	int populate_inputs(std::span<rack::engine::Input, 6> input);
+	void route_inputs(rainbow::IO &io, int inChannels);
 #endif
-
-	void ChannelProcess1(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
-	void ChannelProcess2(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
-	void ChannelProcess6(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
 };
 
 struct Envelope {
