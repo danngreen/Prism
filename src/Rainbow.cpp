@@ -105,6 +105,9 @@ struct Rainbow : core::PrismModule {
 		GLOBAL_LEVEL_INPUT,
 		ENUMS(MONO_Q_INPUT,6),
 		ENUMS(MONO_LEVEL_INPUT,6),
+#if defined(METAMODULE)
+		ENUMS(MONO_CHAN_INPUT,6),
+#endif
 		NUM_INPUTS
 	};
 	enum OutputIds {
@@ -114,6 +117,9 @@ struct Rainbow : core::PrismModule {
 		POLY_DEBUG_OUTPUT,
 		ENUMS(MONO_ENV_OUTPUT,6),
 		ENUMS(MONO_VOCT_OUTPUT,6),
+#if defined(METAMODULE)
+		ENUMS(MONO_CHAN_OUTPUT,6),
+#endif
 		NUM_OUTPUTS
 	};
 	enum LightIds {
@@ -469,6 +475,10 @@ struct Rainbow : core::PrismModule {
 		configInput(LOCK246_INPUT, "Lock 6-246");
 
 		for (int i = 0; i < NUM_CHANNELS; i++) {
+#if defined(METAMODULE)
+			configInput(MONO_CHAN_INPUT + i, string::f("Channel %i Audio", i + 1));
+			configOutput(MONO_CHAN_OUTPUT + i, string::f("Channel %i Audio", i + 1));
+#endif
 			configInput(MONO_LEVEL_INPUT + i, string::f("Mono level CV %i", i + 1));
 			configInput(MONO_Q_INPUT + i, string::f("Mono Q %i", i + 1));
 			configOutput(MONO_VOCT_OUTPUT + i, string::f("Mono V/Oct %i", i + 1));
@@ -1164,6 +1174,12 @@ struct RainbowWidget : ModuleWidget {
 		addInput(createInputCentered<gui::PrismPort>(Vec(275.000 + 11.0, 380.0f - 126.000 - 11.0), module, Rainbow::MONO_LEVEL_INPUT+4));
 		addInput(createInputCentered<gui::PrismPort>(Vec(315.000 + 11.0, 380.0f - 126.000 - 11.0), module, Rainbow::MONO_LEVEL_INPUT+5));
 
+#ifdef METAMODULE
+		for (auto i = 0u; i < NUM_CHANNELS; i++) {
+			addInput(createInputCentered<gui::PrismPort>(Vec(35.000 + 11.0, 380.0f - 240.000 - 11.0), module, Rainbow::MONO_CHAN_INPUT + i));
+			addOutput(createOutputCentered<gui::PrismPort>(Vec(35.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::MONO_CHAN_OUTPUT + i));
+		}
+#endif
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(35.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::POLY_OUT_OUTPUT));
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(355.000 + 11.0, 380.0f - 240.000 - 11.0), module, Rainbow::POLY_ENV_OUTPUT));
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(355.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::POLY_VOCT_OUTPUT));
