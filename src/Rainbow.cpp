@@ -737,7 +737,28 @@ void Rainbow::process(const ProcessArgs &args) {
 
 	prepare();
 
-	audio.inputChannels = std::min(inputs[POLY_IN_INPUT].getChannels(), 6);
+#if defined(METAMODULE)
+	auto poly_in = Audio::Input{};
+	auto poly_out = Audio::Output{};
+
+	// Merge mono jacks * 6 into a poly input jack
+	poly_in.channels = 0;
+	int highest_patched_input = -1;
+	for (int n = 0; n < NUM_CHANNELS; n++) {
+		if (inputs[MONO_CHAN_INPUT + n].isConnected()) {
+			poly_in.setVoltage(inputs[MONO_CHAN_INPUT + n].getVoltage(), n);
+			highest_patched_input = n;
+		} else
+			poly_in.setVoltage(0);
+	}
+	poly_in.channels = highest_patched_input + 1;
+
+#else
+	auto &poly_in = inputs[POLY_IN_INPUT];
+	auto &poly_out = outputs[POLY_OUT_OUTPUT];
+#endif
+
+	audio.inputChannels = std::min(poly_in.getChannels(), 6);
 	audio.outputChannels = params[OUTCHAN_PARAM].getValue(); 
 	audio.noiseSelected = noiseSelected;
 	audio.sampleRate = args.sampleRate;
@@ -746,16 +767,16 @@ void Rainbow::process(const ProcessArgs &args) {
 
 	switch(audio.outputChannels) {
 		case 0:
-			audio.ChannelProcess1(io, inputs[POLY_IN_INPUT], outputs[POLY_OUT_OUTPUT], filterbank);
+			audio.ChannelProcess1(io, poly_in, poly_out, filterbank);
 			break;
 		case 1:
-			audio.ChannelProcess2(io, inputs[POLY_IN_INPUT], outputs[POLY_OUT_OUTPUT], filterbank);
+			audio.ChannelProcess2(io, poly_in, poly_out, filterbank);
 			break;
 		case 2:
-			audio.ChannelProcess6(io, inputs[POLY_IN_INPUT], outputs[POLY_OUT_OUTPUT], filterbank);
+			audio.ChannelProcess6(io, poly_in, poly_out, filterbank);
 			break;
 		default:
-			audio.ChannelProcess1(io, inputs[POLY_IN_INPUT], outputs[POLY_OUT_OUTPUT], filterbank);
+			audio.ChannelProcess1(io, poly_in, poly_out, filterbank);
 	}
 
 	// Populate poly outputs
@@ -769,6 +790,11 @@ void Rainbow::process(const ProcessArgs &args) {
 		outputs[MONO_VOCT_OUTPUT + n].setVoltage(io.voct_out[n]);
 
 		params[Rainbow::LEVEL_OUT_PARAM + n].setValue(io.OUTLEVEL[n]);
+
+#if defined(METAMODULE)
+		if (outputs[MONO_CHAN_OUTPUT + n].isConnected())
+			outputs[MONO_CHAN_OUTPUT + n].setVoltage(poly_out.getVoltage(n), 0);
+#endif
 	}
 
 	for (int n = 0; n < NUM_CHANNELS; n++) {
@@ -1180,6 +1206,7 @@ struct RainbowWidget : ModuleWidget {
 			addOutput(createOutputCentered<gui::PrismPort>(Vec(35.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::MONO_CHAN_OUTPUT + i));
 		}
 #endif
+		
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(35.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::POLY_OUT_OUTPUT));
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(355.000 + 11.0, 380.0f - 240.000 - 11.0), module, Rainbow::POLY_ENV_OUTPUT));
 		addOutput(createOutputCentered<gui::PrismPort>(Vec(355.000 + 11.0, 380.0f - 318.000 - 11.0), module, Rainbow::POLY_VOCT_OUTPUT));

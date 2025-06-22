@@ -66,6 +66,8 @@ target_sources(Prism
     RainbowExpanderMetaModule.cpp
 )
 
+target_include_directories(Prism PRIVATE ./)
+
 set_property(TARGET Prism PROPERTY CXX_STANDARD 23)
 
 if("${INSTALL_DIR}" STREQUAL "")

@@ -25,6 +25,10 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
 #include "dsp/noise.hpp"
 #include "scales/Scales.hpp"
 
+#if defined(METAMODULE)
+#include "poly_port.hpp"
+#endif
+
 //Number of components
 #define NUM_FILTS 20
 #define NUM_CHANNELS 6
@@ -164,9 +168,18 @@ struct Audio {
 	dsp::Frame<NUM_CHANNELS> outputFrames6[NUM_SAMPLES] = {};
 
    	float generateNoise();
-	void ChannelProcess1(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
-	void ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
-	void ChannelProcess6(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
+
+#if defined(METAMODULE)
+	using Input = MetaModule::PolyPolyfill::Input<6>;
+	using Output = MetaModule::PolyPolyfill::Output<6>;
+#else
+	using Input = rack::engine::Input;
+	using Output = rack::engine::Output;
+#endif
+
+	void ChannelProcess1(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
+	void ChannelProcess2(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
+	void ChannelProcess6(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank);
 };
 
 struct Envelope {

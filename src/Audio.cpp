@@ -20,7 +20,7 @@ float Audio::generateNoise() {
 	return nO;
 }
 
-void Audio::ChannelProcess1(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess1(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank) {
 
 	int inChannels;
 	float n = 0.0f;
@@ -112,7 +112,7 @@ void Audio::ChannelProcess1(rainbow::IO &io, rack::engine::Input &input, rack::e
 	}
 }
 
-void Audio::ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess2(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank) {
 
 	int inChannels;
 	float n = 0.0f;
@@ -217,7 +217,7 @@ void Audio::ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::e
 	}
 }
 
-void Audio::ChannelProcess6(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess6(rainbow::IO &io, Audio::Input &input, Audio::Output &output, rainbow::FilterBank &filterbank) {
 
 	int inChannels;
 	float n = 0.0f;
