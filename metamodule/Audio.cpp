@@ -108,11 +108,32 @@ void set_outputs(BuffT &outputBuffer, std::span<rack::engine::Output> output, fl
 	}
 }
 
-void merge_outs(rainbow::IO &io, std::array<rack::dsp::Frame<1>, NUM_SAMPLES> &outputFrames1) {
+void merge_outs(rainbow::IO &io, std::span<rack::dsp::Frame<1>, NUM_SAMPLES> outputFrames1) {
+	// Convert output buffer: 6 -> 1
 	for (int i = 0; i < NUM_SAMPLES; i++) {
 		outputFrames1[i].samples[0] = 0;
 		for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-			outputFrames1[i].samples[0] += io.out[chan][i] / MAX_12BIT;
+			outputFrames1[i].samples[0] += io.out[chan][i] / Audio::MAX_12BIT;
+		}
+	}
+}
+
+void merge_outs(rainbow::IO &io, std::span<rack::dsp::Frame<2>, NUM_SAMPLES> outputFrames2) {
+	// Convert output buffer: 6 -> 2
+	for (int i = 0; i < NUM_SAMPLES; i++) {
+		outputFrames2[i].samples[0] = 0;
+		outputFrames2[i].samples[1] = 0;
+		for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+			outputFrames2[i].samples[chan & 1] += io.out[chan][i] / Audio::MAX_12BIT;
+		}
+	}
+}
+
+void merge_outs(rainbow::IO &io, std::span<rack::dsp::Frame<6>, NUM_SAMPLES> outputFrames6) {
+	// Convert output buffer: 6 -> 6
+	for (int i = 0; i < NUM_SAMPLES; i++) {
+		for (int chan = 0; chan < NUM_CHANNELS; chan++) {
+			outputFrames6[i].samples[chan] = io.out[chan][i] / Audio::MAX_12BIT;
 		}
 	}
 }
@@ -127,13 +148,8 @@ void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> in
 		// Pass to filter
 		filterbank.process_audio_block();
 
-		// Convert output buffer
-		for (int i = 0; i < NUM_SAMPLES; i++) {
-			outputFrames1[i].samples[0] = 0;
-			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-				outputFrames1[i].samples[0] += io.out[chan][i] / MAX_12BIT;
-			}
-		}
+		merge_outs(io, outputFrames1);
+
 		resample_output(outputSrc1, outputBuffer1, outputFrames1, internalSampleRate, sampleRate);
 	}
 	set_outputs(outputBuffer1, output, outputScale);
@@ -148,15 +164,9 @@ void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> in
 
 		// Pass to filter
 		filterbank.process_audio_block();
+		merge_outs(io, outputFrames2);
 
 		// Convert output buffer
-		for (int i = 0; i < NUM_SAMPLES; i++) {
-			outputFrames2[i].samples[0] = 0;
-			outputFrames2[i].samples[1] = 0;
-			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-				outputFrames2[i].samples[chan & 1] += io.out[chan][i] / MAX_12BIT;
-			}
-		}
 		resample_output(outputSrc2, outputBuffer2, outputFrames2, internalSampleRate, sampleRate);
 	}
 	set_outputs(outputBuffer2, output, outputScale);
@@ -172,18 +182,10 @@ void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> in
 		// Pass to filter
 		filterbank.process_audio_block();
 
-		// Convert output buffer
-		for (int i = 0; i < NUM_SAMPLES; i++) {
-			for (int chan = 0; chan < NUM_CHANNELS; chan++) {
-				outputFrames6[i].samples[chan] = io.out[chan][i] / MAX_12BIT;
-			}
-		}
-		resample_output(outputSrc2, outputBuffer2, outputFrames2, internalSampleRate, sampleRate);
+		merge_outs(io, outputFrames6);
+		resample_output(outputSrc6, outputBuffer6, outputFrames6, internalSampleRate, sampleRate);
 	}
 	set_outputs(outputBuffer6, output, outputScale);
 }
-
-
-
 
 
