@@ -181,8 +181,7 @@ struct Audio {
 									 std::span<rack::engine::Output> output, 
 									 rainbow::FilterBank &filterbank);
 
-	std::array<FixedVector<float, NUM_SAMPLES>, NUM_CHANNELS> inbuff;
-	unsigned block_ctr = NUM_SAMPLES;
+	unsigned block_ctr = 0;
 
 #endif
 };
