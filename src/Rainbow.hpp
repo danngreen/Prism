@@ -12,6 +12,9 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
     return (v < x) ? x : (y < v) ? y : v;
 }}
 #endif*/
+#if defined(METAMODULE)
+#include <span>
+#endif
 
 #include <array>
 #include <bitset>
@@ -124,8 +127,8 @@ struct Levels;
 struct State;
 
 struct Audio {
-	const float MIN_12BIT = -16777216.0f;
-	const float MAX_12BIT = 16777215.0f;
+	constexpr static float MIN_12BIT = -16777216.0f;
+	constexpr static float MAX_12BIT = 16777215.0f;
 
 	int inputChannels;
 	int outputChannels;
@@ -156,9 +159,19 @@ struct Audio {
 	dsp::Frame<NUM_CHANNELS> outputFrames6[NUM_SAMPLES] = {};
 
    	float generateNoise();
+
+#if !defined(METAMODULE)
 	void ChannelProcess1(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
 	void ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
 	void ChannelProcess6(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
+#else
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 1> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 2> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 6> output, rainbow::FilterBank &filterbank);
+
+	int populate_inputs(std::span<rack::engine::Input, 6> input);
+	void route_inputs(rainbow::IO &io, int inChannels);
+#endif
 };
 
 struct Envelope {

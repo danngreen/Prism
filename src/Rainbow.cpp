@@ -751,6 +751,24 @@ void Rainbow::process(const ProcessArgs &args) {
 	audio.outputScale = freqScale;
 
 #if defined(METAMODULE)
+	auto ins = std::span<rack::engine::Input, 6>{inputs.begin() + MONO_CHAN_INPUT, 6};
+	auto outs1 = std::span<rack::engine::Output, 1>{outputs.begin() + MONO_CHAN_OUTPUT, 1};
+	auto outs2 = std::span<rack::engine::Output, 2>{outputs.begin() + MONO_CHAN_OUTPUT, 2};
+	auto outs6 = std::span<rack::engine::Output, 6>{outputs.begin() + MONO_CHAN_OUTPUT, 6};
+
+	switch(audio.outputChannels) {
+		default:
+		case 0:
+			audio.ChannelProcess(io, ins, outs1, filterbank);
+			break;
+		case 1:
+			audio.ChannelProcess(io, ins, outs2, filterbank);
+			break;
+		case 2:
+			audio.ChannelProcess(io, ins, outs6, filterbank);
+			break;
+	}
+
 #else
 
 	switch(audio.outputChannels) {
