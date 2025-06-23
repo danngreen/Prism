@@ -21,7 +21,7 @@ float Audio::generateNoise() {
 }
 
 int Audio::populate_inputs(std::span<rack::engine::Input, 6> input) {
-// VCV: int Audio::populate_inputs(rack::engine::Input &input) {
+	// VCV: int Audio::populate_inputs(rack::engine::Input &input) {
 	int inChannels;
 	float n = 0.0f;
 
@@ -40,17 +40,18 @@ int Audio::populate_inputs(std::span<rack::engine::Input, 6> input) {
 
 	for (int i = 0; i < inChannels; i++) {
 		if (!nInputBuffer[i].full()) {
+			dsp::Frame<1> sample;
 			if (inputChannels == 0) {
-				nInputFrame[i].samples[0] = n / 5.0f;
+				sample.samples[0] = n / 5.0f;
 			} else if (inputChannels == 1) {
 				// VCV: nInputFrame[i].samples[0] = input.getVoltage(i) / 5.0f;
-				nInputFrame[i].samples[0] = input[0].getVoltage() / 5.0f;
+				sample.samples[0] = input[0].getVoltage() / 5.0f;
 			} else {
 				// VCV: nInputFrame[i].samples[0] = input.getVoltage(0) / 5.0f;
-				nInputFrame[i].samples[0] = input[i].getVoltage() / 5.0f;
+				sample.samples[0] = input[i].getVoltage() / 5.0f;
 			}
-			nInputBuffer[i].push(nInputFrame[i]);
-		} 
+			nInputBuffer[i].push(sample);
+		}
 	}
 	return inChannels;
 }
@@ -67,26 +68,26 @@ void Audio::route_inputs(rainbow::IO &io, int inChannels) {
 		for (int j = 0; j < NUM_SAMPLES; j++) {
 			int32_t v = std::clamp(nInputFrames[i][j].samples[0] * MAX_12BIT, MIN_12BIT, MAX_12BIT);
 
-			switch(inChannels) {
+			switch (inChannels) {
 				case 1:
-					io.in[i][j] 		= v;
-					io.in[1 + i][j] 	= v;
-					io.in[2 + i][j] 	= v;
-					io.in[3 + i][j] 	= v;
-					io.in[4 + i][j] 	= v;
-					io.in[5 + i][j] 	= v;
+					io.in[i][j] = v;
+					io.in[1 + i][j] = v;
+					io.in[2 + i][j] = v;
+					io.in[3 + i][j] = v;
+					io.in[4 + i][j] = v;
+					io.in[5 + i][j] = v;
 					break;
 				case 2:
-					io.in[i][j] 		= v;
-					io.in[2 + i][j] 	= v;
-					io.in[4 + i][j] 	= v;
+					io.in[i][j] = v;
+					io.in[2 + i][j] = v;
+					io.in[4 + i][j] = v;
 					break;
 				case 3:
-					io.in[i * 2][j] 	= v;
+					io.in[i * 2][j] = v;
 					io.in[1 + i * 2][j] = v;
 					break;
 				default:
-					io.in[i][j] 		= v;
+					io.in[i][j] = v;
 			}
 		}
 	}
@@ -122,7 +123,8 @@ void route_outputs(rainbow::IO &io, std::span<rack::dsp::Frame<6>, NUM_SAMPLES> 
 	}
 }
 
-void resample_output(auto &outputSrc, auto &outputBuffer, auto &outputFrames, float internalSampleRate, float sampleRate) {
+void resample_output(
+	auto &outputSrc, auto &outputBuffer, auto &outputFrames, float internalSampleRate, float sampleRate) {
 	outputSrc.setRates(internalSampleRate, sampleRate);
 	int inLen = NUM_SAMPLES;
 	int outLen = outputBuffer.capacity();
@@ -130,9 +132,8 @@ void resample_output(auto &outputSrc, auto &outputBuffer, auto &outputFrames, fl
 	outputBuffer.endIncr(outLen);
 }
 
-
 void set_outputs(auto &outputBuffer, std::span<rack::engine::Output> output, float outputScale) {
-// VCV: void set_outputs(auto &outputBuffer, rack::engine::Output &output, float outputScale) {
+	// VCV: void set_outputs(auto &outputBuffer, rack::engine::Output &output, float outputScale) {
 	if (!outputBuffer.empty()) {
 		auto out = outputBuffer.shift();
 		for (size_t i = 0; i < output.size(); i++) {
@@ -142,15 +143,14 @@ void set_outputs(auto &outputBuffer, std::span<rack::engine::Output> output, flo
 	}
 }
 
-void channel_process(
-		auto &outputSrc, 
-		auto &outputBuffer, 
-		auto &outputFrames, 
-		rainbow::IO &io, 
-		std::span<rack::engine::Input, 6> input, 
-		std::span<rack::engine::Output> output, 
-		rainbow::FilterBank &filterbank, 
-		Audio *audio) {
+void channel_process(auto &outputSrc,
+					 auto &outputBuffer,
+					 auto &outputFrames,
+					 rainbow::IO &io,
+					 std::span<rack::engine::Input, 6> input,
+					 std::span<rack::engine::Output> output,
+					 rainbow::FilterBank &filterbank,
+					 Audio *audio) {
 
 	auto inChannels = audio->populate_inputs(input);
 
@@ -166,16 +166,23 @@ void channel_process(
 	set_outputs(outputBuffer, output, audio->outputScale);
 }
 
-void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 1> output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess(rainbow::IO &io,
+						   std::span<rack::engine::Input, 6> input,
+						   std::span<rack::engine::Output, 1> output,
+						   rainbow::FilterBank &filterbank) {
 	channel_process(outputSrc1, outputBuffer1, outputFrames1, io, input, output, filterbank, this);
 }
 
-void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 2> output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess(rainbow::IO &io,
+						   std::span<rack::engine::Input, 6> input,
+						   std::span<rack::engine::Output, 2> output,
+						   rainbow::FilterBank &filterbank) {
 	channel_process(outputSrc2, outputBuffer2, outputFrames2, io, input, output, filterbank, this);
 }
 
-void Audio::ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 6> output, rainbow::FilterBank &filterbank) {
+void Audio::ChannelProcess(rainbow::IO &io,
+						   std::span<rack::engine::Input, 6> input,
+						   std::span<rack::engine::Output, 6> output,
+						   rainbow::FilterBank &filterbank) {
 	channel_process(outputSrc6, outputBuffer6, outputFrames6, io, input, output, filterbank, this);
 }
-
-
