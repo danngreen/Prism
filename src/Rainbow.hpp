@@ -13,6 +13,7 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
 }}
 #endif*/
 #if defined(METAMODULE)
+#include "util/fixed_vector.hh"
 #include <span>
 #endif
 
@@ -171,6 +172,14 @@ struct Audio {
 
 	int populate_inputs(std::span<rack::engine::Input, 6> input);
 	void route_inputs(rainbow::IO &io, int inChannels);
+	void channel_process_no_resample(rainbow::IO &io, 
+									 std::span<rack::engine::Input, 6> input, 
+									 std::span<rack::engine::Output> output, 
+									 rainbow::FilterBank &filterbank);
+
+	std::array<FixedVector<float, NUM_SAMPLES>, NUM_CHANNELS> inbuff;
+	unsigned block_ctr = NUM_SAMPLES;
+
 #endif
 };
 
