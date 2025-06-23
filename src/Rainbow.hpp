@@ -127,8 +127,8 @@ struct Levels;
 struct State;
 
 struct Audio {
-	const float MIN_12BIT = -16777216.0f;
-	const float MAX_12BIT = 16777215.0f;
+	constexpr static float MIN_12BIT = -16777216.0f;
+	constexpr static float MAX_12BIT = 16777215.0f;
 
 	int inputChannels;
 	int outputChannels;
@@ -168,6 +168,7 @@ struct Audio {
 	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 1> output, rainbow::FilterBank &filterbank);
 	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 2> output, rainbow::FilterBank &filterbank);
 	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input, 6> input, std::span<rack::engine::Output, 6> output, rainbow::FilterBank &filterbank);
+
 	int populate_inputs(std::span<rack::engine::Input, 6> input);
 	void route_inputs(rainbow::IO &io, int inChannels);
 #endif
