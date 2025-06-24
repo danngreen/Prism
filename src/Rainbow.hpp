@@ -13,7 +13,6 @@ constexpr const T& clamp(const T& v, const T& x, const T& y) {
 }}
 #endif*/
 #if defined(METAMODULE)
-#include "util/fixed_vector.hh"
 #include <span>
 #endif
 
@@ -170,17 +169,13 @@ struct Audio {
 	void ChannelProcess2(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
 	void ChannelProcess6(rainbow::IO &io, rack::engine::Input &input, rack::engine::Output &output, rainbow::FilterBank &filterbank);
 #else
-	void ChannelProcess(rainbow::IO &io, std::span<rack::engine::Input> input, std::span<rack::engine::Output> output, rainbow::FilterBank &filterbank);
-
-	int populate_inputs(std::span<rack::engine::Input> input);
-	void route_inputs(rainbow::IO &io, int inChannels);
-	void channel_process_no_resample(rainbow::IO &io, 
-									 std::span<rack::engine::Input> input, 
-									 std::span<rack::engine::Output> output, 
-									 rainbow::FilterBank &filterbank);
+	void ChannelProcess(rainbow::IO &io, std::span<Input> input, std::span<Output> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess1(rainbow::IO &io, std::span<Input> input, std::span<Output> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess2(rainbow::IO &io, std::span<Input> input, std::span<Output> output, rainbow::FilterBank &filterbank);
+	void ChannelProcess6(rainbow::IO &io, std::span<Input> input, std::span<Output> output, rainbow::FilterBank &filterbank);
+	void ChannelProcessNoResample(rainbow::IO &io, std::span<Input> input, std::span<Output> output, rainbow::FilterBank &filterbank);
 
 	unsigned block_ctr = 0;
-
 #endif
 };
 
