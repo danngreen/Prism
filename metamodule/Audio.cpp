@@ -1,4 +1,4 @@
-#include "../../../meta-module/firmware/metamodule-plugin-sdk/debug_raw.h"
+#include "../../../metamodule/firmware/metamodule-plugin-sdk/debug_raw.h"
 #include "../src/Rainbow.hpp"
 
 using namespace rainbow;
@@ -21,7 +21,7 @@ float Audio::generateNoise() {
 	return nO;
 }
 
-int Audio::populate_inputs(std::span<rack::engine::Input, 6> input) {
+int Audio::populate_inputs(std::span<rack::engine::Input> input) {
 	int inChannels;
 	float n = 0.0f;
 
@@ -150,17 +150,41 @@ void resample_output(
 	outputBuffer.endIncr(outLen);
 }
 
-void set_outputs(auto &outputBuffer, std::span<rack::engine::Output> output, float outputScale) {
+void set_outputs(auto &outputBuffer, std::span<rack::engine::Output> output, float outputScale, int outputChannels) {
 	if (!outputBuffer.empty()) {
 		auto out = outputBuffer.shift();
-		for (size_t i = 0; i < output.size(); i++) {
+		for (size_t i = 0; i < outputChannels; i++) {
 			output[i].setVoltage(out.samples[i] * 5.0f * outputScale);
 		}
 	}
 }
 
+void channel_process_resample(auto &outputSrc,
+							  auto &outputBuffer,
+							  auto &outputFrames,
+							  rainbow::IO &io,
+							  std::span<rack::engine::Input> input,
+							  std::span<rack::engine::Output> output,
+							  rainbow::FilterBank &filterbank,
+							  Audio *audio) {
+
+	auto inChannels = audio->populate_inputs(input);
+
+	if (outputBuffer.empty()) {
+		audio->route_inputs(io, inChannels);
+
+		filterbank.process_audio_block();
+
+		route_outputs(io, outputFrames);
+
+		resample_output(outputSrc, outputBuffer, outputFrames, audio->internalSampleRate, audio->sampleRate);
+	}
+
+	set_outputs(outputBuffer, output, audio->outputScale, audio->outputChannels);
+}
+
 void Audio::channel_process_no_resample(rainbow::IO &io,
-										std::span<rack::engine::Input, 6> input,
+										std::span<rack::engine::Input> input,
 										std::span<rack::engine::Output> output,
 										rainbow::FilterBank &filterbank) {
 
@@ -216,7 +240,7 @@ void Audio::channel_process_no_resample(rainbow::IO &io,
 	}
 
 	// Route filter outputs to output jacks
-	if (output.size() == 1) {
+	if (outputChannels == 1) {
 		// 6 => 1
 		float out = 0;
 		for (int chan = 0; chan < NUM_CHANNELS; chan++) {
@@ -224,7 +248,7 @@ void Audio::channel_process_no_resample(rainbow::IO &io,
 		}
 		output[0].setVoltage(out * outputScale);
 
-	} else if (output.size() == 2) {
+	} else if (outputChannels == 2) {
 		// 6 => 2
 		float channel[2] = {0, 0};
 		for (int chan = 0; chan < NUM_CHANNELS; chan++) {
@@ -233,7 +257,7 @@ void Audio::channel_process_no_resample(rainbow::IO &io,
 		output[0].setVoltage(channel[0] * outputScale);
 		output[1].setVoltage(channel[1] * outputScale);
 
-	} else if (output.size() == 6) {
+	} else if (outputChannels == 6) {
 		// 6 => 6
 		for (auto chan = 0u; chan < NUM_CHANNELS; chan++) {
 			auto sample = io.out[chan][block_ctr] / Audio::MAX_12BIT;
@@ -250,56 +274,23 @@ void Audio::channel_process_no_resample(rainbow::IO &io,
 	}
 }
 
-void channel_process(auto &outputSrc,
-					 auto &outputBuffer,
-					 auto &outputFrames,
-					 rainbow::IO &io,
-					 std::span<rack::engine::Input, 6> input,
-					 std::span<rack::engine::Output> output,
-					 rainbow::FilterBank &filterbank,
-					 Audio *audio) {
+void Audio::ChannelProcess(rainbow::IO &io,
+						   std::span<rack::engine::Input> input,
+						   std::span<rack::engine::Output> output,
+						   rainbow::FilterBank &filterbank) {
 
-	auto inChannels = audio->populate_inputs(input);
+	if (internalSampleRate == sampleRate) {
+		channel_process_no_resample(io, input, output, filterbank);
 
-	if (outputBuffer.empty()) {
-		audio->route_inputs(io, inChannels);
+	} else {
 
-		filterbank.process_audio_block();
+		if (outputChannels == 1)
+			channel_process_resample(outputSrc1, outputBuffer1, outputFrames1, io, input, output, filterbank, this);
 
-		route_outputs(io, outputFrames);
+		else if (outputChannels == 2)
+			channel_process_resample(outputSrc2, outputBuffer2, outputFrames2, io, input, output, filterbank, this);
 
-		resample_output(outputSrc, outputBuffer, outputFrames, audio->internalSampleRate, audio->sampleRate);
+		else if (outputChannels == 6)
+			channel_process_resample(outputSrc6, outputBuffer6, outputFrames6, io, input, output, filterbank, this);
 	}
-
-	set_outputs(outputBuffer, output, audio->outputScale);
-}
-
-void Audio::ChannelProcess(rainbow::IO &io,
-						   std::span<rack::engine::Input, 6> input,
-						   std::span<rack::engine::Output, 1> output,
-						   rainbow::FilterBank &filterbank) {
-	if (internalSampleRate == sampleRate)
-		channel_process_no_resample(io, input, output, filterbank);
-	else
-		channel_process(outputSrc1, outputBuffer1, outputFrames1, io, input, output, filterbank, this);
-}
-
-void Audio::ChannelProcess(rainbow::IO &io,
-						   std::span<rack::engine::Input, 6> input,
-						   std::span<rack::engine::Output, 2> output,
-						   rainbow::FilterBank &filterbank) {
-	if (internalSampleRate == sampleRate)
-		channel_process_no_resample(io, input, output, filterbank);
-	else
-		channel_process(outputSrc2, outputBuffer2, outputFrames2, io, input, output, filterbank, this);
-}
-
-void Audio::ChannelProcess(rainbow::IO &io,
-						   std::span<rack::engine::Input, 6> input,
-						   std::span<rack::engine::Output, 6> output,
-						   rainbow::FilterBank &filterbank) {
-	if (internalSampleRate == sampleRate)
-		channel_process_no_resample(io, input, output, filterbank);
-	else
-		channel_process(outputSrc6, outputBuffer6, outputFrames6, io, input, output, filterbank, this);
 }
