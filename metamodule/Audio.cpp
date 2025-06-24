@@ -41,7 +41,6 @@ int Audio::populate_inputs(std::span<rack::engine::Input> input) {
 
 	const auto in0 = input[0].getVoltage();
 
-	DebugPin1High();
 	//typ: 300ns, max 500ns, avg 318ns
 	// 6 channels: avg 1.25us = 6.0% load
 	// 3 channels: avg 0.67us
@@ -59,7 +58,6 @@ int Audio::populate_inputs(std::span<rack::engine::Input> input) {
 			nInputBuffer[i].push(nInputFrame[i]);
 		}
 	}
-	DebugPin1Low();
 
 	return inChannels;
 }
@@ -68,7 +66,6 @@ void Audio::route_inputs(rainbow::IO &io, int inChannels) {
 	// 1 input: 1us per 32-block = 0.031us/sample = 0.15% load
 	// 6 inputs: 10us per 32-block = 0.312us/sample = 1.5% load
 	for (int i = 0; i < inChannels; i++) {
-		DebugPin2High();
 		// Each channel, avg 1.1us per block of 32 samples = 0.034us/sample
 		nInputSrc[i].setRates(sampleRate, internalSampleRate);
 
@@ -76,9 +73,7 @@ void Audio::route_inputs(rainbow::IO &io, int inChannels) {
 		int outLen = NUM_SAMPLES;
 		nInputSrc[i].process(nInputBuffer[i].startData(), &inLen, nInputFrames[i], &outLen);
 		nInputBuffer[i].startIncr(inLen);
-		DebugPin2Low();
 
-		DebugPin0High();
 		for (int j = 0; j < NUM_SAMPLES; j++) {
 			constexpr static int32_t I_MIN_24BIT = -16777216;
 			constexpr static int32_t I_MAX_24BIT = 16777215;
@@ -107,7 +102,6 @@ void Audio::route_inputs(rainbow::IO &io, int inChannels) {
 					io.in[i][j] = v;
 			}
 		}
-		DebugPin0Low();
 	}
 }
 
@@ -167,6 +161,13 @@ void channel_process_resample(auto &outputSrc,
 							  std::span<rack::engine::Output> output,
 							  rainbow::FilterBank &filterbank,
 							  Audio *audio) {
+	// 0 input jacks: 0.71us sample + 18us block  29%
+	// 1 input jacks: 0.60us sample + 28us block
+	// 2 input jacks: 0.75us sample + 28us block
+	// 3 input jacks:               + 32us block
+	// 4 input jacks:               + 34us block
+	// 5 input jacks:               + 35us block
+	// 6 input jacks: 1.4us sample + 377us block 39%
 
 	auto inChannels = audio->populate_inputs(input);
 
@@ -188,6 +189,8 @@ void Audio::channel_process_no_resample(rainbow::IO &io,
 										std::span<rack::engine::Output> output,
 										rainbow::FilterBank &filterbank) {
 
+	// no jacks: 26% load +1% each jack => 32% 6 jacks
+	// Any jack configuration: 0.56us sample; 20.6us block
 	constexpr static int32_t I_MIN_24BIT = -16777216;
 	constexpr static int32_t I_MAX_24BIT = 16777215;
 
