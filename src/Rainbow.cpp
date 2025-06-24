@@ -443,6 +443,11 @@ struct Rainbow : core::PrismModule {
 		configParam(FREQNUDGE6_PARAM, -4095, 4095, 0, "Freq Nudge evens");
 		configSwitch(MOD135_PARAM, 0, 1, 0, "Mod", {"1", "135"});
 		configSwitch(MOD246_PARAM, 0, 1, 0, "Mod", {"6", "246"});
+		configParam(LOCK135_PARAM, 0, 1, 0, "Inv. Lock 1-135");
+		configParam(LOCK246_PARAM, 0, 1, 0, "Inv. Lock 6-246");
+		// TODO: New Prism::Button needed for these
+		// configSwitch(LOCK135_PARAM, 0, 1, 0, "Inv. Lock 1-135", {"Unlocked", "Locked"});
+		// configSwitch(LOCK246_PARAM, 0, 1, 0, "Inv. Lock 6-246", {"Unlocked", "Locked"});
 
 		configParam(BANK_PARAM, 0, 19, 0, "Bank"); 
 		configParam(SWITCHBANK_PARAM, 0, 1, 0, "Switch bank"); 
